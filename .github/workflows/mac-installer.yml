@@ -1,0 +1,43 @@
+name: Criar instalador macOS
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '13.0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+      - name: Resolver dependências
+        run: |
+          if [ ! -f Cargo.lock ]; then cargo generate-lockfile; fi
+      - name: Testar proteção dos originais e exportação
+        run: cargo test --locked --target aarch64-apple-darwin
+      - name: Compilar app Apple Silicon
+        run: cargo build --locked --release --target aarch64-apple-darwin
+      - name: Criar e verificar aplicação e DMG
+        run: bash scripts/package-macos.sh
+      - name: Disponibilizar instaladores
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnaDesqueeze-AppleSilicon
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            dist/AnaDesqueeze-AppleSilicon.dmg
+            dist/AnaDesqueeze-AppleSilicon-app.zip
+            dist/SHA256SUMS.txt
+            Cargo.lock
+      - name: Resumo da entrega
+        run: |
+          echo '### AnaDesqueeze para Apple Silicon' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Descarrega AnaDesqueeze-AppleSilicon em Artifacts, extrai e abre o DMG. Arrasta a app para Aplicações.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Inclui alternativa .app em ZIP. Assinatura ad-hoc; sem notarização Apple. Requer macOS 13 ou posterior.' >> "$GITHUB_STEP_SUMMARY"
